@@ -205,7 +205,7 @@ def scrape_tags():
 
     driver.quit()
     t2 = time.time()
-    output_box.insert(tk.END, f"\nTimp total de execuție: {t2 - t1:.2f} secunde.\n", "bold")
+    output_box.insert(tk.END, f"\n⏱ Timp total de execuție: {t2 - t1:.2f} secunde.\n", "bold")
 
 
 
@@ -352,7 +352,7 @@ def scrape_user():
     finally:
         driver.quit()
     t2 = time.time()
-    output_box.insert(tk.END, f"\nTimp total de execuție: {t2 - t1:.2f} secunde.\n", "bold")
+    output_box.insert(tk.END, f"\n⏱ Timp total de execuție: {t2 - t1:.2f} secunde.\n", "bold")
 
 
 def run_scraper():
@@ -420,8 +420,6 @@ keyword_label.configure(bg=background_color, fg="white")
 run_button = tk.Button(root, text="Caută", command=run_scraper)
 run_button.pack(pady=10)
 output_box.pack(padx=10, pady=10)
-
-output_box.bind("<Button-1>", open_link)
 
 
 # ---- JSON Export ----
