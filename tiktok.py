@@ -110,7 +110,7 @@ def scrape_tags():
     # Try loading cookies
     if not load_cookies(driver):
         driver.get("https://www.tiktok.com/login")
-        output_box.insert(tk.END, "🔐 Vă rugăm să vă logați în browserul care s-a deschis...\nDupă logare, apăsați ENTER in terminal (NU în zona de output a aplicației).\n", "white_text")
+        output_box.insert(tk.END, "🔐 Vă rog să vă logați în browserul care s-a deschis...\nDupă logare, apăsați ENTER in terminal (NU în zona de output a aplicației).\n", "white_text")
         input("✅ După ce te-ai logat, apasă ENTER aici...")
         save_cookies(driver)
         driver.quit()
@@ -231,11 +231,11 @@ def scrape_user():
         load_cookies(driver)
     else:
         driver.get("https://www.tiktok.com/login")
-        output_box.insert(tk.END, "🔐 Vă rugăm să vă logați în browserul care s-a deschis...\nDupă logare, apăsați ENTER în terminal (NU în zona de output a aplicației).\n", "white_text")
+        output_box.insert(tk.END, "🔐 Vă rog să vă logați în browserul care s-a deschis...\nDupă logare, apăsați ENTER în terminal (NU în zona de output a aplicației).\n", "white_text")
         input("✅ După ce te-ai logat, apasă Enter aici...")
         save_cookies(driver)
         driver.quit()
-        return  # Stop the current scrape, rerun to use cookies
+        return
 
 
     try:

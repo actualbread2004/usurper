@@ -431,7 +431,6 @@ def scrape_tags():
                 iso_date = "N/A"
                 title_date = "N/A"
 
-            # Default fallback
             local_time_str = "N/A"
 
             if iso_date != "N/A":
