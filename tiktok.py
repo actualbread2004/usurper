@@ -11,6 +11,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
+from tkinter import messagebox
 import pickle
 import os
 
@@ -110,8 +111,8 @@ def scrape_tags():
     # Try loading cookies
     if not load_cookies(driver):
         driver.get("https://www.tiktok.com/login")
-        output_box.insert(tk.END, "🔐 Vă rog să vă logați în browserul care s-a deschis...\nDupă logare, apăsați ENTER in terminal (NU în zona de output a aplicației).\n", "white_text")
-        input("✅ După ce te-ai logat, apasă ENTER aici...")
+        output_box.insert(tk.END, "🔐 Vă rog să vă logați în browserul care s-a deschis...\nDupă logare, apăsați OK.\n", "white_text")
+        messagebox.showinfo("Autentificare", "✅ După ce te-ai logat, apasă OK aici")
         save_cookies(driver)
         driver.quit()
         return
@@ -231,8 +232,8 @@ def scrape_user():
         load_cookies(driver)
     else:
         driver.get("https://www.tiktok.com/login")
-        output_box.insert(tk.END, "🔐 Vă rog să vă logați în browserul care s-a deschis...\nDupă logare, apăsați ENTER în terminal (NU în zona de output a aplicației).\n", "white_text")
-        input("✅ După ce te-ai logat, apasă Enter aici...")
+        output_box.insert(tk.END, "🔐 Vă rog să vă logați în browserul care s-a deschis...\nDupă logare, apăsați OK.\n", "white_text")
+        messagebox.showinfo("Autentificare", "✅ După ce te-ai logat, apasă OK aici")
         save_cookies(driver)
         driver.quit()
         return
