@@ -229,6 +229,8 @@ def scrape_user(username, output_box):
     export_to_json(data, mode="user", argument=username)
     t2 = time.time()
     output_box.insert(tk.END, f"\nTimp total de execuție: {t2 - t1:.2f} secunde.\n", "bold")
+    status_var.set("Status: Căutare finalizată.")
+    root.update_idletasks()  # refresh the UI
 
 # ---- Scrape subreddit ----
 def scrape_subreddit(subreddit_name, sort_type, output_box):
@@ -332,6 +334,8 @@ def scrape_subreddit(subreddit_name, sort_type, output_box):
     export_to_json(data, mode="subreddit", argument=subreddit)
     t2 = time.time()
     output_box.insert(tk.END, f"\nTimp total de execuție: {t2 - t1:.2f} secunde.\n", "bold")
+    status_var.set("Status: Căutare finalizată.")
+    root.update_idletasks()  # refresh the UI
 
 
 def run_scraper():
@@ -343,6 +347,8 @@ def run_scraper():
         output_box.insert(tk.END, " /!\\ Introduceți o limită validă de postări /!\\")
         return
     mode = mode_var.get()
+    status_var.set("Status: Căutare în curs...")
+    root.update_idletasks()  # refresh the UI
     if mode == "USER":
         username = input_entry.get().strip()
         scrape_user(username, output_box)
@@ -382,7 +388,6 @@ root.state('zoomed')
 root.title("Scraper")
 root.configure(bg=background_color)
 
-
 mode_var = tk.StringVar(value="USER")
 sort_var = tk.StringVar(value="Hot")
 
@@ -403,7 +408,6 @@ input_label = tk.Label(root, text="Introduceți USERNAME țintă:")
 input_label.pack(pady=5)
 input_entry = tk.Entry(root, width=40)
 input_entry.pack(pady=5)
-input_entry.insert(0, "EntirePlantain")
 input_entry.bind("<Return>", lambda e: run_scraper())
 
 
@@ -427,6 +431,10 @@ sort_label.configure(bg=background_color, fg="white")
 
 run_button = tk.Button(root, text="Caută", command=run_scraper)
 run_button.pack(pady=10)
+
+status_var = tk.StringVar(value="Status: Așteptare")
+status_label = tk.Label(root, textvariable=status_var, bg=background_color, fg="white", anchor="w")
+status_label.pack(anchor="w", padx=10, pady=0)
 
 output_box = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=200, height=50, font=("Consolas", 14), bg = "#081d40", fg="white")
 output_box.pack(padx=10, pady=10)

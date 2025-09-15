@@ -96,39 +96,34 @@ def export_to_json(data, mode, argument):
         output_box.insert(tk.END, f"Eroare fișier JSON: {e}", "error_text")
         
 def extract_profile_info(driver):
-
     try:
-        # Display name
         name_el = driver.find_element(By.XPATH, '//div[@data-testid="UserName"]//span[1]')
-        output_box.insert(tk.END, f"Display name: {name_el.text}\n")
+        output_box.insert(tk.END, f"Nume public: {name_el.text}\n")
 
-        # Bio
         try:
             bio_el = driver.find_element(By.XPATH, '//div[@data-testid="UserDescription"]')
             output_box.insert(tk.END, f"Bio: {bio_el.text}\n")
         except:
-            output_box.insert(tk.END, "Bio: N/A\n")
+            output_box.insert(tk.END, "Bio: N/A\n", "error_text")
 
-        # Join date
         try:
             join_el = driver.find_element(By.XPATH, '//span[contains(text(), "Joined ")]')
             join_date = join_el.text.replace("Joined ", "")
-            output_box.insert(tk.END, f"Join date: {join_date}\n")
+            output_box.insert(tk.END, f"Data creării contului: {join_date}\n")
         except:
-            output_box.insert(tk.END, "Join date: N/A\n")
+            output_box.insert(tk.END, "Data creării contului: N/A\n", "error_text")
 
-        # Following
         try:
             following_el = driver.find_element(By.XPATH, '//a[contains(@href,"/following")]/span[1]/span')
-            output_box.insert(tk.END, f"# following: {following_el.text}\n")
+            output_box.insert(tk.END, f"Urmărit de: {following_el.text}\n conturi. (following)")
         except:
-            output_box.insert(tk.END, "# following: N/A\n")
+            output_box.insert(tk.END, "Urmărit de: N/A (following)\n", "error_text")
 
         try:
             followers_el = driver.find_element(By.XPATH, '//a[contains(@href,"/verified_followers")]/span[1]/span')
-            output_box.insert(tk.END, f"# followers: {followers_el.text}\n")
+            output_box.insert(tk.END, f"Urmăritori: {followers_el.text}\n")
         except:
-            output_box.insert(tk.END, "# followers: N/A\n\n")
+            output_box.insert(tk.END, "Urmăritori: N/A (followers)\n\n", "error_text")
 
 
     except Exception as e:
@@ -158,12 +153,14 @@ def scrape_tags():
         save_cookies(driver)
         driver.quit()
         return
-
     try:
         tag_clean = tag.lstrip("#")
+        hashtags = [tag.strip().lstrip("#") for tag in tag.replace(',', ' ').split() if tag]
         url = f"https://x.com/search?q=%23{tag_clean}&src=typed_query&f=live"
         driver.get(url)
         time.sleep(5)
+        output_box.insert("end", f"✅ Căutare după hashtag(-uri): {', '.join(hashtags)}\n\n", ["big_bold", "green_text"])
+
 
         # Scroll for more tweets
         last_height = driver.execute_script("return document.body.scrollHeight")
@@ -236,9 +233,6 @@ def scrape_tags():
                 aria_label = like_button.get_attribute("aria-label")
                 match = re.search(r'([\d,.]+[KkMm]?)\s+like', aria_label, re.IGNORECASE)
                 likes = match.group(1) if match else "N/A"
-                
-                views_span = driver.find_element(By.XPATH, '//span[contains(text(), "Views")]/preceding-sibling::div//span[contains(@class, "css-1jxf684")]')
-                views = views_span.text
 
                 item = {
                     "caption": caption,
@@ -247,7 +241,6 @@ def scrape_tags():
                     "likes": likes,
                     "retweets": retweets,
                     "comments": replies,
-                    "views": views,
                     "quoted_caption": quoted_caption,
                     "link": tweet_url,
                     "matched": matched
@@ -266,20 +259,24 @@ def scrape_tags():
         if not keywords:
             combined = has_word_videos + no_word_videos
             for i, r in enumerate(combined, 1):
-                output_box.insert(tk.END, f"{i}) {r['caption']}\n", "white_text")
+                output_box.insert(tk.END, f"{i}) ", "bold")
+                output_box.insert(tk.END, f"{r['caption']}\n", "white_text")
                 output_box.insert(tk.END, f"Data: {r['iso_date']}\n", "white_text")
                 if r.get("quoted_caption"):
                     output_box.insert(tk.END, f"↳ {r['quoted_caption']}\n", "dim_text")
                 output_box.insert(tk.END, f"💬 {r['comments']}   🔁 {r['retweets']}   ❤️ {r['likes']}\nLink:")
-                insert_clickable_link(r["link"], f"{r['link']}\n\n")
+                insert_clickable_link(r["link"], f"{r['link']}\n")
                 r["counter"] = i
                 all_items.append(r)
+                output_box.insert(tk.END, '\n' + "-" * 150 + '\n\n', "bold")
+
 
         else:
             if has_word_videos:
                 output_box.insert(tk.END, f"\n==== POSTĂRI CU CUVINTELE CHEIE \"{', '.join(keywords)}\" ====\n", "big_bold")
                 for i, r in enumerate(has_word_videos, 1):
-                    insert_with_highlight(f"{i}) {r['caption']}\n", keywords)
+                    output_box.insert(tk.END, f"{i}) ", "bold")
+                    insert_with_highlight(f"{r['caption']}\n", keywords)
                     output_box.insert(tk.END, f"Data: {r['iso_date']}\n", "white_text")
                     if r.get("quoted_caption"):
                         output_box.insert(tk.END, f"↳ {r['quoted_caption']}\n", "dim_text")
@@ -288,11 +285,14 @@ def scrape_tags():
                     insert_clickable_link(r["link"], f"{r['link']}\n\n")
                     r["counter"] = i
                     all_items.append(r)
+                    output_box.insert(tk.END, '\n' + "-" * 150 + '\n\n', "bold")
+
 
             if no_word_videos:
                 output_box.insert(tk.END, f"\n==== POSTĂRI FĂRĂ CUVINTELE CHEIE \"{', '.join(keywords)}\" ====\n", "big_bold")
                 for i, r in enumerate(no_word_videos, 1):
-                    output_box.insert(tk.END, f"{i}) {r['caption']}\n", "white_text")
+                    output_box.insert(tk.END, f"{i}) ", "bold")
+                    output_box.insert(tk.END, f"{r['caption']}\n", "white_text")
                     output_box.insert(tk.END, f"Data: {r['iso_date']}\n", "white_text")
                     if r.get("quoted_caption"):
                         output_box.insert(tk.END, f"↳ {r['quoted_caption']}\n", "dim_text")
@@ -300,6 +300,7 @@ def scrape_tags():
                     insert_clickable_link(r["link"], f"{r['link']}\n\n")
                     r["counter"] = len(all_items) + 1
                     all_items.append(r)
+                    output_box.insert(tk.END, '\n' + "-" * 150 + '\n\n', "bold")
 
         if not all_items:
             output_box.insert(tk.END, "\n❌ Niciun rezultat găsit.\n", "error_text")
@@ -312,6 +313,8 @@ def scrape_tags():
         driver.quit()
 
     output_box.insert(tk.END, f"\n⏱ Timp total de execuție: {time.time() - t1:.2f} secunde.\n", "bold")
+    status_var.set("Status: Căutare finalizată.")
+    root.update_idletasks()  # refresh the UI
 
 def scrape_user():
     t1 = time.time()
@@ -356,7 +359,9 @@ def scrape_user():
         
         output_box.insert(tk.END, "Utilizator ", "green_text")
         insert_clickable_link(f"https://x.com/{username}", f"@{username}")
-        output_box.insert(tk.END, " găsit!\n", "green_text")
+        output_box.insert(tk.END, " găsit!\n\n", "green_text")
+        extract_profile_info(driver)
+        output_box.insert(tk.END, "\nPOSTĂRI:\n\n", "big_bold")
 
         last_height = driver.execute_script("return document.body.scrollHeight")
         for _ in range(4):
@@ -464,7 +469,8 @@ def scrape_user():
         if not keywords:
             combined = has_word_videos + no_word_videos
             for i, r in enumerate(combined, 1):
-                output_box.insert(tk.END, f"{i}) {r['caption']}\nData: {r['iso_date']}\n", "white_text")
+                output_box.insert(tk.END, f"{i}) ", "bold")
+                output_box.insert(tk.END, f"{r['caption']}\nData: {r['iso_date']}\n", "white_text")
                 if r.get("quoted_caption"):
                     output_box.insert(tk.END, f"↳ {r['quoted_caption']}\n", "dim_text")
                 output_box.insert(tk.END, f"💬 {r['comments']}   🔁 {r['retweets']}   ❤️ {r['likes']}\n") 
@@ -472,12 +478,14 @@ def scrape_user():
                 insert_clickable_link(r["link"], f"{r['link']}\n\n")
                 r["counter"] = i
                 all_items.append(r)
+                output_box.insert(tk.END, '\n' + "-" * 150 + '\n\n', "bold")
 
         else:
             if has_word_videos:
                 output_box.insert(tk.END, f"\n==== POSTĂRI CU CUVINTELE CHEIE \"{', '.join(keywords)}\" ====\n", "big_bold")
                 for i, r in enumerate(has_word_videos, 1):
-                    insert_with_highlight(f"{i}) {r['caption']}\n", keywords)
+                    output_box.insert(tk.END, f"{i}) ", "bold")
+                    insert_with_highlight(f"{r['caption']}\n", keywords)
                     output_box.insert(tk.END, f"Data: {r['iso_date']}\n", "white_text")
                     if r.get("quoted_caption"):
                         output_box.insert(tk.END, f"↳ {r['quoted_caption']}\n", "dim_text")
@@ -486,19 +494,23 @@ def scrape_user():
                     insert_clickable_link(r["link"], f"{r['link']}\n\n")
                     r["counter"] = i
                     all_items.append(r)
+                    output_box.insert(tk.END, '\n' + "-" * 150 + '\n\n', "bold")
+
 
             if no_word_videos:
                 output_box.insert(tk.END, f"\n==== POSTĂRI FĂRĂ CUVINTELE CHEIE \"{', '.join(keywords)}\" ====\n", "big_bold")
                 for i, r in enumerate(no_word_videos, 1):
-                    output_box.insert(tk.END, f"{i}) {r['caption']}\n", "white_text")
+                    output_box.insert(tk.END, f"{i}) ", "bold")
+                    output_box.insert(tk.END, f"{r['caption']}\n", "white_text")
                     output_box.insert(tk.END, f"Data: {r['iso_date']}\n", "white_text")
                     if r.get("quoted_caption"):
                         output_box.insert(tk.END, f"↳ {r['quoted_caption']}\n", "dim_text")
                     output_box.insert(tk.END, f"💬 {r['comments']}   🔁 {r['retweets']}   ❤️ {r['likes']}\n")
                     output_box.insert(tk.END, "Link: ")
-                    insert_clickable_link(r["link"], f"{r['link']}\n\n")
+                    insert_clickable_link(r["link"], f"{r['link']}\n")
                     r["counter"] = len(all_items) + 1
                     all_items.append(r)
+                    output_box.insert(tk.END, '\n' + "-" * 150 + '\n\n', "bold")
 
         if not all_items:
             output_box.insert(tk.END, "\nUtilizatorul nu are postări.\n", "error_text")
@@ -511,12 +523,16 @@ def scrape_user():
         driver.quit()
 
     output_box.insert(tk.END, f"\n⏱ Timp total de execuție: {time.time() - t1:.2f} secunde.\n", "bold")
+    status_var.set("Status: Căutare finalizată.")
+    root.update_idletasks()  # refresh the UI
 
 
 
 
 def run_scraper():
     mode = mode_var.get()
+    status_var.set("Status: Căutare în curs...")
+    root.update_idletasks()  # refresh the UI
     if mode == "USER":
         scrape_user()
     else:
@@ -561,12 +577,19 @@ keyword_entry.bind("<Return>", lambda e: run_scraper())
 run_button = tk.Button(root, text="Caută", command=run_scraper)
 run_button.pack(pady=10)
 
+status_var = tk.StringVar(value="Status: Așteptare")
+status_label = tk.Label(root, textvariable=status_var, bg=background_color, fg="white", anchor="w")
+status_label.pack(anchor="w", padx=10, pady=0)
+
 output_box = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=200, height=50, font=("Consolas", 14), bg="#081d40", fg="white")
 output_box.pack(padx=10, pady=10)
 
+bold_font = font.Font(output_box, output_box.cget("font"))
+bold_font.configure(weight="bold")
 output_box.tag_configure("highlight", background="#abab61")
 output_box.tag_configure("green_text", foreground="#1fff2a")
 output_box.tag_configure("error_text", foreground="red", font=("Consolas", 11, "bold"))
+output_box.tag_configure("bold", font=bold_font)
 output_box.tag_configure("big_bold", font=("Consolas", 14, "bold"))
 output_box.tag_configure("white_text", foreground="white")
 output_box.tag_configure("dim_text", foreground="#888888")

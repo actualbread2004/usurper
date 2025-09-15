@@ -89,6 +89,98 @@ def insert_with_highlight(text, keywords):
 def time_created(timestamp):
     return datetime.datetime.fromtimestamp(timestamp, datetime.UTC).strftime("%d-%m-%Y %H:%M:%S")
 
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
+from bs4 import BeautifulSoup
+
+def get_caption(driver, timeout=8):
+    """
+    Robust caption extractor for Instagram post/reel pages.
+    Returns caption text (with newlines for <br>) or "N/A".
+    If it fails, saves driver.page_source to debug_instagram_post.html.
+    """
+    wait = WebDriverWait(driver, timeout)
+
+    # 1) Quick try: OG meta description (no wait)
+    try:
+        meta = driver.find_element(By.XPATH, '//meta[@property="og:description"]')
+        content = meta.get_attribute('content')
+        if content:
+            parts = content.split(':', 1)
+            if len(parts) > 1:
+                return parts[1].strip().strip('"')
+            return content.strip()
+    except Exception:
+        pass
+    
+    xpaths = [
+        "//h1[@dir='auto']",
+        "//article//h1",
+        "//div[contains(@class,'_a9zs')]/span",
+        "//div[contains(@class,'C4VMK')]/span"
+    ]
+
+    for xp in xpaths:
+        try:
+            el = wait.until(EC.presence_of_element_located((By.XPATH, xp)))
+            # prefer innerHTML so we can preserve <br> and convert them to \n
+            inner = el.get_attribute("innerHTML") or ""
+            if inner:
+                text = inner.replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
+                # strip any leftover tags safely
+                text = BeautifulSoup(text, "html.parser").get_text("\n", strip=True)
+                if text:
+                    return text.strip()
+            # fallback to element.text
+            txt = el.text.strip()
+            if txt:
+                return txt
+        except TimeoutException:
+            continue
+        except Exception:
+            continue
+        
+    try:
+        img = driver.find_element(By.XPATH, '//img[@alt]')
+        alt = img.get_attribute('alt')
+        if alt:
+            parts = alt.split(':', 1)
+            if len(parts) > 1:
+                return parts[1].strip().strip('"')
+            return alt.strip()
+    except Exception:
+        pass
+
+    try:
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        h1 = soup.find("h1", attrs={"dir": "auto"})
+        if h1:
+            raw = h1.decode_contents()
+            raw = raw.replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
+            text = BeautifulSoup(raw, "html.parser").get_text("\n", strip=True)
+            if text:
+                return text.strip()
+
+        meta = soup.find("meta", {"property": "og:description"})
+        if meta and meta.get("content"):
+            content = meta["content"]
+            parts = content.split(":", 1)
+            if len(parts) > 1:
+                return parts[1].strip().strip('"')
+            return content.strip()
+    except Exception:
+        pass
+
+    try:
+        with open("debug_instagram_post.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+    except Exception:
+        pass
+
+    return "N/A"
+
 def scrape_user():
     t1 = time.time()
     output_box.delete('1.0', tk.END)
@@ -106,7 +198,6 @@ def scrape_user():
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-    # Load cookies if available
     if os.path.exists(COOKIE_FILE):
         load_cookies(driver)
     else:
@@ -173,6 +264,7 @@ def scrape_user():
         no_word_videos = []
         count = 1
         data = []
+        caption = "N/A"
         
         try:
             if driver.find_element(By.XPATH, "//*[contains(text(), \"Verified\")]"):
@@ -181,10 +273,10 @@ def scrape_user():
                 output_box.insert(tk.END, "Profilul nu este verificat.\n\n", "error_text")
         except Exception:
             output_box.insert(tk.END, "Nu am putut verifica starea profilului.\n\n", "error_text")
-
+        
         for link in unique_links:
             driver.get(link)
-            wait = WebDriverWait(driver, 10)
+            wait = WebDriverWait(driver, 5)
 
             
             try:
@@ -192,14 +284,8 @@ def scrape_user():
             except TimeoutException:
                 continue
             
-            caption = "N/A"
-            try:
-                caption_element = driver.find_element(By.CSS_SELECTOR, "h1._ap3a")
-                print("Caption:", caption_element.text)
-                caption = caption_element.text.strip()
-            except Exception as e:
-                print("Caption not found:", e)
-
+            caption = get_caption(driver, timeout=5)
+            
             try:
                 likes_elem = wait.until(EC.presence_of_element_located((
                     By.XPATH, '//a[contains(@href, "/liked_by/")]//span[1]'
@@ -249,8 +335,8 @@ def scrape_user():
         if not keywords:
             all_videos = has_word_videos + no_word_videos
             for video in all_videos:
-                output_box.insert(tk.END, f"{count}) ", "white_text")
-                output_box.insert(tk.END, f"{video['caption']} | {video['likes']}\n")
+                output_box.insert(tk.END, f"{count}) ", "bold")
+                output_box.insert(tk.END, f"{video['caption']}\n{video['likes']}\n")
                 output_box.insert(tk.END, f"Data: {video['title_date']} ({video['iso_date']})\n", "white_text")
                 output_box.insert(tk.END, "Link: ", "white_text")
                 insert_clickable_link(video['link'], video['link'] + "\n")
@@ -267,9 +353,9 @@ def scrape_user():
         else:
             output_box.insert(tk.END, f"\n==== VIDEOCLIPURI CU CUVINTELE CHEIE: {', '.join(keywords)}\n", "big_bold")
             for video in has_word_videos:
-                output_box.insert(tk.END, f"{count}) ", "white_text")
+                output_box.insert(tk.END, f"{count}) ", "bold")
                 insert_with_highlight(video['caption'], keywords)
-                output_box.insert(tk.END, f" | {video['likes']}\n")
+                output_box.insert(tk.END, f"\n{video['likes']}\n")
                 output_box.insert(tk.END, f"Data: {video['title_date']} ({video['iso_date']})\n", "white_text")
                 output_box.insert(tk.END, "Link: ", "white_text")
                 insert_clickable_link(video['link'], video['link'] + "\n")
@@ -287,8 +373,8 @@ def scrape_user():
             output_box.insert(tk.END, f"\n==== VIDEOCLIPURI FĂRĂ CUVINTELE CHEIE: {', '.join(keywords)}\n", "big_bold")
             count = 1
             for video in no_word_videos:
-                output_box.insert(tk.END, f"{count}) ", "white_text")
-                output_box.insert(tk.END, f"{video['caption']} | {video['likes']}\n")
+                output_box.insert(tk.END, f"{count}) ", "bold")
+                output_box.insert(tk.END, f"{video['caption']}\n{video['likes']}\n",)
                 output_box.insert(tk.END, f"Data: {video['title_date']} ({video['iso_date']})\n", "white_text")
                 output_box.insert(tk.END, "Link: ", "white_text")
                 insert_clickable_link(video['link'], video['link'] + "\n")
@@ -310,7 +396,9 @@ def scrape_user():
     finally:
         driver.quit()
     t2 = time.time()
-    output_box.insert(tk.END, f"\n⏱ Timp total de execuție: {t2 - t1:.2f} secunde.\n", "bold")
+    output_box.insert(tk.END, f"\n⏱ Timp total de execuție: {t2 - t1:.2f} secunde.\n")
+    status_var.set("Status: Căutare finalizată.")
+    root.update_idletasks()  # refresh the UI
 
 def scrape_tags():
     t1 = time.time()
@@ -363,7 +451,7 @@ def scrape_tags():
                 break
             last_height = new_height
 
-        # Use reels/posts selector
+        # Collect post links
         post_links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/'], a[href*='/p/']")
         unique_links = []
         for elem in post_links:
@@ -371,21 +459,22 @@ def scrape_tags():
             if href and href not in unique_links:
                 unique_links.append(href)
 
+        has_word_posts = []
+        no_word_posts = []
         count = 1
+
         for link in unique_links:
             driver.get(link)
-            time.sleep(2)
+            wait = WebDriverWait(driver, 8)
 
-            wait = WebDriverWait(driver, 10)
-
-            username_elem = wait.until(
-                EC.presence_of_element_located((
-                    By.XPATH,
-                    '//a[starts-with(@href, "/") and not(contains(@href, "/reel")) and not(contains(@href, "/p/"))]'
-                ))
-            )
-            username = username_elem.text.strip()
-            if not username:
+            try:
+                username_elem = wait.until(
+                    EC.presence_of_element_located((By.XPATH,
+                        '//a[starts-with(@href, "/") and not(contains(@href, "/reel")) and not(contains(@href, "/p/"))]'
+                    ))
+                )
+                username = username_elem.text.strip() or "N/A"
+            except:
                 username = "N/A"
 
             caption = "N/A"
@@ -394,64 +483,51 @@ def scrape_tags():
             captions = driver.find_elements(By.XPATH, '//div[contains(@class,"_aagv")]//img[@alt]')
             if captions:
                 raw_caption = captions[0].get_attribute("alt")
-            if not raw_caption or raw_caption == "":
+            if not raw_caption:
                 raw_caption = "N/A"
             else:
-                phrase = "Ar putea fi"
-                index = raw_caption.find(phrase)
-
-                if index != -1:
-                    caption = raw_caption[:index].strip()
-                    prediction = raw_caption[index:].strip()
+                phrase_ro = "Ar putea fi"
+                phrase_en = "May be"
+                phrase = phrase_ro if phrase_ro in raw_caption else (phrase_en if phrase_en in raw_caption else None)
+                if phrase:
+                    idx = raw_caption.find(phrase)
+                    caption = raw_caption[:idx].strip()
+                    prediction = raw_caption[idx:].strip()
                 else:
                     caption = raw_caption.strip()
-                    
-                
+
             try:
-                verified_elem = driver.find_element(By.XPATH, '//svg/title[text()="Verified"]')
+                driver.find_element(By.XPATH, '//svg/title[text()="Verified"]')
                 is_verified = True
-            except Exception:
+            except:
                 is_verified = False
 
-            
-            likes_elem = wait.until(EC.presence_of_element_located((
-                By.XPATH,
-                '//a[contains(@href, "/liked_by/")]//span[1]'
-            )))
-            likes = likes_elem.text.strip().replace(",", "")
-            
             try:
-                time_elem = wait.until(EC.presence_of_element_located((
-                    By.XPATH,
-                    '//time[@datetime]'
+                likes_elem = wait.until(EC.presence_of_element_located((By.XPATH,
+                    '//a[contains(@href, "/liked_by/")]//span[1]'
                 )))
+                likes = likes_elem.text.strip().replace(",", "")
+            except:
+                likes = "N/A"
+
+            try:
+                time_elem = wait.until(EC.presence_of_element_located((By.XPATH, '//time[@datetime]')))
                 iso_date = time_elem.get_attribute("datetime")
                 title_date = time_elem.get_attribute("title")
-            except Exception:
-                iso_date = "N/A"
-                title_date = "N/A"
+            except:
+                iso_date, title_date = "N/A", "N/A"
 
             local_time_str = "N/A"
-
             if iso_date != "N/A":
                 try:
                     utc_time = datetime.datetime.strptime(iso_date, "%Y-%m-%dT%H:%M:%S.000Z").replace(tzinfo=pytz.utc)
                     local_tz = pytz.timezone("Europe/Bucharest")
                     local_time = utc_time.astimezone(local_tz)
                     local_time_str = local_time.strftime("%Y-%m-%d %H:%M:%S")
-                except Exception:
+                except:
                     local_time_str = "Invalid format"
 
-            output_box.insert(tk.END, f"{count}) [", "white_text")
-            insert_clickable_link(f"www.instagram.com/{username}", f"{username}")
-            output_box.insert(tk.END, "] ")
-            output_box.insert(tk.END, f"{caption} | {likes}\n")
-            output_box.insert(tk.END, f"Data: {title_date} ({local_time_str})\n", "white_text")
-            output_box.insert(tk.END, f"Analiză: {prediction}\n", "white_text")
-            output_box.insert(tk.END, "Link: ", "white_text")
-            insert_clickable_link(link, link + "\n")
-            output_box.insert(tk.END, "\n")
-            data.append({
+            post_data = {
                 "counter": count,
                 "username": username,
                 "verified": is_verified,
@@ -462,21 +538,82 @@ def scrape_tags():
                 "hashtag": hashtag,
                 "keywords": keywords,
                 "likes": likes
-            })
+            }
+
+            if keywords and any(kw in caption.lower() for kw in keywords):
+                has_word_posts.append(post_data)
+            else:
+                no_word_posts.append(post_data)
+
             count += 1
+
+                # ---- OUTPUT ----
+        if not keywords:
+            all_posts = has_word_posts + no_word_posts
+            count = 1
+            for post in all_posts:
+                output_box.insert(tk.END, f"{count}) ", "bold")
+                output_box.insert(tk.END, "[")
+                insert_clickable_link(f"www.instagram.com/{post['username']}", post['username'])
+                output_box.insert(tk.END, "] ")
+                output_box.insert(tk.END, f"{post['caption']}\n{post['likes']}\n")
+                output_box.insert(tk.END, f"Data: {post['title_date']} ({post['iso_date']})\n", "white_text")
+                output_box.insert(tk.END, f"Analiză: {post.get('prediction','N/A')}\n", "white_text")
+                output_box.insert(tk.END, "Link: ", "white_text")
+                insert_clickable_link(post['link'], post['link'] + "\n")
+                output_box.insert(tk.END, "\n")
+                post["counter"] = count
+                data.append(post)
+                count += 1
+        else:
+            # With keywords
+            output_box.insert(tk.END, f"\n==== POSTĂRI CU CUVINTELE CHEIE: {', '.join(keywords)}\n", "big_bold")
+            count = 1
+            for post in has_word_posts:
+                output_box.insert(tk.END, f"{count}) ", "bold")
+                output_box.insert(tk.END, "[")
+                insert_clickable_link(f"www.instagram.com/{post['username']}", post['username'])
+                output_box.insert(tk.END, "] ")
+                insert_with_highlight(post['caption'], keywords)
+                output_box.insert(tk.END, f"\n{post['likes']}\n")
+                output_box.insert(tk.END, f"Data: {post['title_date']} ({post['iso_date']})\n", "white_text")
+                output_box.insert(tk.END, f"Analiză: {post.get('prediction','N/A')}\n", "white_text")
+                output_box.insert(tk.END, "Link: ", "white_text")
+                insert_clickable_link(post['link'], post['link'] + "\n")
+                output_box.insert(tk.END, "\n")
+                post["counter"] = count
+                data.append(post)
+                count += 1
+
+            output_box.insert(tk.END, f"\n==== POSTĂRI FĂRĂ CUVINTELE CHEIE: {', '.join(keywords)}\n", "big_bold")
+            count = 1
+            for post in no_word_posts:
+                output_box.insert(tk.END, f"{count}) ", "bold")
+                output_box.insert(tk.END, "[")
+                insert_clickable_link(f"www.instagram.com/{post['username']}", post['username'])
+                output_box.insert(tk.END, "] ")
+                output_box.insert(tk.END, f"{post['caption']}\n{post['likes']}\n")
+                output_box.insert(tk.END, f"Data: {post['title_date']} ({post['iso_date']})\n", "white_text")
+                output_box.insert(tk.END, f"Analiză: {post.get('prediction','N/A')}\n", "white_text")
+                output_box.insert(tk.END, "Link: ", "white_text")
+                insert_clickable_link(post['link'], post['link'] + "\n")
+                output_box.insert(tk.END, "\n")
+                post["counter"] = count
+                data.append(post)
+                count += 1
+
 
     export_to_json(data, mode="tags", argument="-".join(hashtags))
     driver.quit()
     t2 = time.time()
-    output_box.insert(tk.END, f"\n⏱ Timp total de execuție: {t2 - t1:.2f} secunde.\n", "bold")
-
-
-
-
-
-
+    output_box.insert(tk.END, f"\n⏱ Timp total de execuție: {t2 - t1:.2f} secunde.\n")
+    status_var.set("Status: Căutare finalizată.")
+    root.update_idletasks()  # refresh the UI
+    
 def run_scraper():
     mode = mode_var.get()
+    status_var.set("Status: Căutare în curs...")
+    root.update_idletasks()  # refresh the UI
     if mode == "USER":
         scrape_user()
     else:
@@ -522,13 +659,20 @@ keyword_entry.bind("<Return>", lambda e: run_scraper())
 run_button = tk.Button(root, text="Caută", command=run_scraper)
 run_button.pack(pady=10)
 
+status_var = tk.StringVar(value="Status: Așteptare")
+status_label = tk.Label(root, textvariable=status_var, bg=background_color, fg="white", anchor="w")
+status_label.pack(anchor="w", padx=10, pady=0)
+
 output_box = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=200, height=50, font=("Consolas", 14), bg = "#081d40", fg="white")
 output_box.pack(padx=10, pady=10)
 
 # ---- Tags ----
+bold_font = font.Font(output_box, output_box.cget("font"))
+bold_font.configure(weight="bold")
 output_box.tag_configure("highlight", background="#abab61")
 output_box.tag_configure("green_text", foreground="#1fff2a")
 output_box.tag_configure("error_text", foreground="red", font=("Consolas", 11, "bold"))
+output_box.tag_configure("bold", font=bold_font)
 output_box.tag_configure("big_bold", font=("Consolas", 14, "bold"))
 output_box.tag_configure("white_text", foreground="white")
 
@@ -540,7 +684,6 @@ keyword_label.configure(bg=background_color, fg="white")
 run_button = tk.Button(root, text="Caută", command=run_scraper)
 run_button.pack(pady=10)
 output_box.pack(padx=10, pady=10)
-
 
 # ---- JSON Export ----
 def export_to_json(data, mode, argument):
